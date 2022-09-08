@@ -1,13 +1,14 @@
-// @ts-nocheck
-import dayjs from 'dayjs';
-import { Dispatch, SetStateAction, useState } from 'react';
+import { Dispatch, SetStateAction, useState, useEffect } from 'react';
+import { MonthYear, getMonthYearDetails, getNewMonthYear } from './monthYear';
 
-import { axiosInstance } from '../../../axiosInstance';
-import { queryKeys } from '../../../react-query/constants';
-import { useUser } from '../../user/hooks/useUser';
 import { AppointmentDateMap } from '../types';
+import { axiosInstance } from '../../../axiosInstance';
+import dayjs from 'dayjs';
 import { getAvailableAppointments } from '../utils';
-import { getMonthYearDetails, getNewMonthYear, MonthYear } from './monthYear';
+import { queryKeys } from '../../../react-query/constants';
+// @ts-nocheck
+import { useQuery, useQueryClient } from 'react-query';
+import { useUser } from '../../user/hooks/useUser';
 
 // for useQuery call
 async function getAppointments(
@@ -63,6 +64,18 @@ export function useAppointments(): UseAppointments {
   /** ****************** START 3: useQuery  ***************************** */
   // useQuery call for appointments for the current monthYear
 
+  // prefetch the appointments for the previous and next monthYear
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    // assume increment of one month
+    const nextMonthYear = getNewMonthYear(monthYear, 1);
+    queryClient.prefetchQuery(
+      [queryKeys.appointments, nextMonthYear.year, nextMonthYear.month],
+      () => getAppointments(nextMonthYear.year, nextMonthYear.month),
+    );
+  }, [queryClient, monthYear]);
+
   // TODO: update with useQuery!
   // Notes:
   //    1. appointments is an AppointmentDateMap (object with days of month
@@ -70,7 +83,15 @@ export function useAppointments(): UseAppointments {
   //
   //    2. The getAppointments query function needs monthYear.year and
   //       monthYear.month
-  const appointments = {};
+  const fallback = {};
+
+  const { data: appointments = fallback } = useQuery(
+    [queryKeys.appointments, monthYear.year, monthYear.month],
+    () => getAppointments(monthYear.year, monthYear.month),
+  );
+
+  //! KeepPreviousData is not a good option for here, since that will show the previous data of the
+  //! month until fetching the new data is done, which is not what we want.
 
   /** ****************** END 3: useQuery  ******************************* */
 
